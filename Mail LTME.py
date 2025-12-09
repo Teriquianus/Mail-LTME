@@ -16,22 +16,22 @@ from win32com.client import constants as c
 # =========================
 PATH_USTVA_BWA = r"C:\Users\AlexanderHaller\Unternehmenskompass GmbH\Unternehmenskompass - CRM\LTME\Automation\UStVA + BWA (Mandanten).docx"
 PATH_FEEDBACK_SB = r"C:\Users\AlexanderHaller\Unternehmenskompass GmbH\Unternehmenskompass - CRM\LTME\Automation\Feedback (Selbstbucher).docx"
-PATH_EXCEL      = r"C:\Users\AlexanderHaller\Unternehmenskompass GmbH\Unternehmenskompass - CRM\LTME\LTME Working.xlsm"
-FEEDBACK_ROOT   = r"C:\Users\AlexanderHaller\Unternehmenskompass GmbH\Unternehmenskompass - CRM\LTME"
+PATH_EXCEL = r"C:\Users\AlexanderHaller\Unternehmenskompass GmbH\Unternehmenskompass - CRM\LTME\LTME Working.xlsm"
+FEEDBACK_ROOT = r"C:\Users\AlexanderHaller\Unternehmenskompass GmbH\Unternehmenskompass - CRM\LTME"
 
-SHEET_NAME      = "Vorlage Mail"
-SMTP_INFO       = "info@ltme-consulting.de"
+SHEET_NAME = "Vorlage Mail"
+SMTP_INFO = "info@ltme-consulting.de"
 
 # Spaltenindex (1-basiert in Excel, hier 0-basiert nach pandas)
-COL_MANDANT         = 0
-COL_TYP             = 2
-COL_INTERVALL       = 3
-COL_VORNAME         = 4
-COL_EMAIL           = 5
-COL_ZEITRAUM        = 6
-COL_ZAHLLAST        = 7
-COL_FLAG_FEEDBACK   = 8
-COL_FLAG_USTVA      = 9
+COL_MANDANT = 0
+COL_TYP = 2
+COL_INTERVALL = 3
+COL_VORNAME = 4
+COL_EMAIL = 5
+COL_ZEITRAUM = 6
+COL_ZAHLLAST = 7
+COL_FLAG_FEEDBACK = 8
+COL_FLAG_USTVA = 9
 
 EURO = "\u20AC"
 
@@ -77,27 +77,26 @@ def _expand_two_digit_year(jj: str) -> str:
     return jj
 
 def _norm_token(s: str) -> str:
-    # trim, lower, NBSP→space, diakritika weg, Punkte/Kommas/Mehrfachspaces raus
+    # trim, lower, NBSP→space, Diakritika weg, Mehrfachspaces raus
     s = (s or "").replace("\u00A0", " ").strip().lower()
     s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode("ascii")
-    s = re.sub(r"[.,]", "", s)
     s = re.sub(r"\s+", " ", s)
     return s
 
 _MONTHS = {
-    # de/eng kurz+lang inkl. problematische Varianten
-    "jan": 1, "januar": 1, "january": 1,
-    "feb": 2, "februar": 2, "february": 2,
-    "mar": 3, "maerz": 3, "mrz": 3, "marz": 3, "maer": 3, "maerz": 3, "march": 3,
+    # Deutsch kurz/lang + übliche Ersatzschreibungen
+    "jan": 1, "januar": 1,
+    "feb": 2, "februar": 2,
+    "mar": 3, "maerz": 3, "mrz": 3, "marz": 3, "maer": 3,
     "apr": 4, "april": 4,
-    "mai": 5, "may": 5,
-    "jun": 6, "juni": 6, "june": 6,
-    "jul": 7, "juli": 7, "july": 7,
+    "mai": 5,
+    "jun": 6, "juni": 6,
+    "jul": 7, "juli": 7,
     "aug": 8, "august": 8,
     "sep": 9, "sept": 9, "september": 9,
-    "okt": 10, "oct": 10, "oktober": 10, "october": 10,
+    "okt": 10, "oktober": 10,
     "nov": 11, "november": 11,
-    "dez": 12, "dec": 12, "dezember": 12, "december": 12,
+    "dez": 12, "dezember": 12,
 }
 
 def _year4(y: str) -> str:
@@ -111,147 +110,56 @@ def _quarter_months(q: int):
     return [start, start+1, start+2]
 
 def months_for_search(tf: str) -> list[str]:
-    """
-    'Jul 25'     -> ['2025-07']
-    'Mär 25'     -> ['2025-03']   (alle "Mär"-Varianten robust)
-    'Sep. 2025'  -> ['2025-09']   (Punkt egal)
-    'III 2025'   -> ['2025-07','2025-08','2025-09']
-    'III/2025'   -> ['2025-07','2025-08','2025-09']
-    'Q3 2025'    -> ['2025-07','2025-08','2025-09']
-    '07/2025'    -> ['2025-07']
-    """
+    """Erkennt Addison-Formate wie "JAN 25" oder "II 2025" und liefert YYYY-MM Strings."""
+
     if not tf:
         return []
+
     try:
-        import pandas as _pd  # lazy, falls pandas nicht global eingebunden wäre
+        import pandas as _pd
     except Exception:
         _pd = None
 
     if isinstance(tf, datetime) or (_pd is not None and isinstance(tf, _pd.Timestamp)):
         return [f"{tf.year}-{int(tf.month):02d}"]
 
-    # Neu: ISO-String-Formen wie '2025-10-01' oder '2025-10-01 00:00:00'
     s_raw = str(tf).strip()
-    m_iso = re.match(r"^(\d{4})-(\d{1,2})(?:-\d{1,2})?(?:\s+\d{2}:\d{2}:\d{2})?$", s_raw)
-    if m_iso:
-        y = m_iso.group(1)
-        m = int(m_iso.group(2))
-        if 1 <= m <= 12:
-            return [f"{y}-{m:02d}"]
+    s = _norm_token(s_raw)
 
-    s = _norm_token(tf)
-
-    # Varianten mit Slash trennen, sonst per Space
-    parts = re.split(r"[\/\s]+", s)
-
-    # 1) Quartal (römisch oder arabisch), z.B. 'iii 2025', 'q3 2025', 'iii/2025'
-    m_q = re.match(r"^(?:q?\s*(i{1,3}|iv)|q?\s*([1-4]))[\/\s]*([0-9]{2,4})$", s)
+    # Römische Quartale: "II 2025"
+    m_q = re.match(r"^(i{1,3}|iv)\s*(\d{2,4})$", s)
     if m_q:
-        roman, arab, year = m_q.group(1), m_q.group(2), _year4(m_q.group(3))
-        q = {"i":1,"ii":2,"iii":3,"iv":4}[roman] if roman else int(arab)
-        return [f"{year}-{m:02d}" for m in _quarter_months(q)]
+        q = {"i": 1, "ii": 2, "iii": 3, "iv": 4}[m_q.group(1)]
+        year = _expand_two_digit_year(m_q.group(2))
+        return [f"{year}-{m:02d}" for m in _quarter_months(q)] if len(year) == 4 else []
 
-    # 2) „X quartal YYYY“
-    m_qw = re.match(r"^([1-4])\s*quartal\s*([0-9]{2,4})$", s)
-    if m_qw:
-        q, year = int(m_qw.group(1)), _year4(m_qw.group(2))
-        return [f"{year}-{m:02d}" for m in _quarter_months(q)]
-
-    # 3) Monat Wort + Jahr, tolerant ggü. Punkt/Diakritika: 'sep. 25', 'maer 25'
-    m_m = re.match(r"^([a-z]+)\s*([0-9]{2,4})$", s)
+    # Monatsnamen: "jan 25", "maerz 2025", "mrz 25"
+    m_m = re.match(r"^([a-zäöü]+)\s*(\d{2,4})$", s)
     if m_m:
-        mon_key, year = m_m.group(1), _year4(m_m.group(2))
+        mon_key = m_m.group(1)
+        year = _expand_two_digit_year(m_m.group(2))
         if mon_key in _MONTHS and len(year) == 4 and year.isdigit():
             mm = _MONTHS[mon_key]
             return [f"{year}-{mm:02d}"]
 
-    # 4) Numerisch 'MM/YYYY' oder 'M/YYYY'
-    m_slash = re.match(r"^([0-9]{1,2})/([0-9]{2,4})$", s)
-    if m_slash:
-        mm, year = int(m_slash.group(1)), _year4(m_slash.group(2))
-        if 1 <= mm <= 12 and len(year) == 4 and year.isdigit():
-            return [f"{year}-{mm:02d}"]
+    return []
 
-    return []  # nicht erkannt
 
-def parse_timeframe(tf: str):
-    """
-    Liefert (months_list, year_str) zurück.
-    Unterstützt:
-      - 'MMM JJ' / 'MMMM JJ' (de/en; z.B. 'Jul 25', 'Mär 25', 'Oktober 25', 'Oct 2025')
-      - 'I/II/III/IV JJJJ'  (römisches Quartal, z.B. 'III 2025')
-      - 'Qx/YYYY'           (legacy)
-      - 'MM/YYYY'           (legacy)
-    """
-    if not tf:
-        return [], ""
-    
-    s = tf.strip()
-    parts = s.replace("  ", " ").split()
+def run_months_for_search_selftest() -> None:
+    """Schnelle Regressionstests für die Addison-Zeitraum-Erkennung."""
 
-    # Monats-Mapping (DE/EN, kurz/lang; Mär/Mrz)
-    month_map = {
-        # Deutsch kurz
-        "JAN": "01", "FEB": "02", "MÄR": "03", "MRZ": "03", "APR": "04",
-        "MAI": "05", "JUN": "06", "JUL": "07", "AUG": "08", "SEP": "09",
-        "OKT": "10", "NOV": "11", "DEZ": "12",
-        # Deutsch lang
-        "JANUAR": "01", "FEBRUAR": "02", "MÄRZ": "03", "MAERZ": "03",
-        "APRIL": "04", "MAI": "05", "JUNI": "06", "JULI": "07",
-        "AUGUST": "08", "SEPTEMBER": "09", "OKTOBER": "10",
-        "NOVEMBER": "11", "DEZEMBER": "12",
-        # Englisch kurz
-        "JAN": "01", "FEB": "02", "MAR": "03", "APR": "04", "MAY": "05",
-        "JUN": "06", "JUL": "07", "AUG": "08", "SEP": "09",
-        "OCT": "10", "NOV": "11", "DEC": "12",
-        # Englisch lang
-        "JANUARY": "01", "FEBRUARY": "02", "MARCH": "03", "APRIL": "04", "MAY": "05",
-        "JUNE": "06", "JULY": "07", "AUGUST": "08", "SEPTEMBER": "09",
-        "OCTOBER": "10", "NOVEMBER": "11", "DECEMBER": "12",
+    cases = {
+        "Jan 25": ["2025-01"],
+        "JAN 25": ["2025-01"],
+        "Mär 25": ["2025-03"],
+        "Maerz 2025": ["2025-03"],
+        "III 2025": ["2025-07", "2025-08", "2025-09"],
+        "II 2025": ["2025-04", "2025-05", "2025-06"],
     }
-
-    # 1) Römisches Quartal: 'III 2025'
-    roman_map = {"I": ["01","02","03"], "II": ["04","05","06"], "III": ["07","08","09"], "IV": ["10","11","12"]}
-    if len(parts) == 2 and parts[0].upper() in roman_map:
-        months = roman_map[parts[0].upper()]
-        year = _expand_two_digit_year(parts[1])
-        if len(year) == 4 and year.isdigit():
-            return months, year
-
-    # 2) Monat Wort + Jahr: 'Jul 25', 'Mär 25', 'Oktober 25', 'Oct 2025'
-    if len(parts) == 2:
-        mon_raw, yr_raw = parts[0], parts[1]
-        key = (mon_raw.upper()
-                      .replace("Ä", "AE")
-                      .replace("Ö", "OE")
-                      .replace("Ü", "UE"))
-        if key in month_map:
-            mm = month_map[key]
-            year = _expand_two_digit_year(yr_raw)
-            if len(year) == 4 and year.isdigit():
-                return [mm], year
-
-    # 3) Legacy 'Q3/YYYY'
-    if s.upper().startswith("Q") and "/" in s:
-        try:
-            q = s[1]
-            year = s.split("/")[1].strip()
-            q_map = {"1": ["01","02","03"], "2": ["04","05","06"], "3": ["07","08","09"], "4": ["10","11","12"]}
-            if q in q_map and len(year) == 4 and year.isdigit():
-                return q_map[q], year
-        except Exception:
-            pass
-
-    # 4) Legacy 'MM/YYYY'
-    if "/" in s:
-        mm, year = [p.strip() for p in s.split("/", 1)]
-        if mm.isdigit():
-            mm = f"{int(mm):02d}"
-            year = _expand_two_digit_year(year)
-            if len(year) == 4 and year.isdigit():
-                return [mm], year
-
-    return [], ""
+    for k, exp in cases.items():
+        got = months_for_search(k)
+        assert got == exp, f"{k} -> {got} != {exp}"
+    print("[OK] months_for_search Selftest")
 
 def display_timeframe(tf: str) -> str:
     keys = months_for_search(tf)
@@ -402,11 +310,26 @@ def get_account(ns, smtp: str):
             pass
     return None
 
+
+def create_draft_mail(outlook_app, account, email: str, subject: str, html: str, drafts_folder) -> None:
+    """Erzeugt einen HTML-Entwurf und verschiebt ihn in den Drafts-Ordner."""
+
+    mail = outlook_app.CreateItem(0)  # olMailItem
+    mail.BodyFormat = 2               # olFormatHTML
+    mail.HTMLBody = html
+    mail.To = email
+    mail.Subject = subject
+    mail.SendUsingAccount = account
+    mail.Save()
+    mail.Move(drafts_folder)
+
 def main():
     # Vorab: Pfade prüfen
     for p in (PATH_USTVA_BWA, PATH_FEEDBACK_SB, PATH_EXCEL, FEEDBACK_ROOT):
         if not os.path.exists(p):
             raise FileNotFoundError(f"Pfad nicht gefunden: {p}")
+
+    run_months_for_search_selftest()
 
     # Excel laden
     df = pd.read_excel(PATH_EXCEL, sheet_name=SHEET_NAME, header=0)
@@ -434,32 +357,10 @@ def main():
     drafts = acct.DeliveryStore.GetDefaultFolder(16)  # olFolderDrafts
 
     tmpdir = tempfile.mkdtemp(prefix="ltme_")
-    made = []
 
     count_fb = 0
-    count_u  = 0
+    count_u = 0
     summary_lines = []
-
-    def _selftest():
-        cases = {
-            "Jul 25": ["2025-07"],
-            "Mär 25": ["2025-03"],
-            "Sep. 2025": ["2025-09"],
-            "III 2025": ["2025-07","2025-08","2025-09"],
-            "III/2025": ["2025-07","2025-08","2025-09"],
-            "Q4 2025": ["2025-10","2025-11","2025-12"],
-            "07/2025": ["2025-07"],
-            "2025-10-01 00:00:00": ["2025-10"],
-            "2025-09-01": ["2025-09"],
-        }
-        cases[pd.Timestamp(2025, 10, 1)] = ["2025-10"]
-        for k, exp in cases.items():
-            got = months_for_search(k)
-            assert got == exp, f"{k} -> {got} != {exp}"
-        print("[OK] months_for_search Selftest")
-
-    # in main() direkt nach Pfadprüfung:
-    _selftest()
 
     try:
         for idx, row in df.iterrows():
@@ -496,20 +397,12 @@ def main():
             # -----------------------
             if has_feedback:
                 html_path = word_fill_to_html(word, PATH_FEEDBACK_SB, placeholders, tmpdir)
-                made.append(html_path)
                 html = read_text_utf8(html_path)
                 block = build_feedback_block(mandant, zeitraum)
                 html = html.replace("{{Feedback}}", block)
                 html = ensure_utf8_meta(html)
-
-                mail = outlook.CreateItem(0)  # olMailItem
-                mail.BodyFormat = 2           # olFormatHTML
-                mail.HTMLBody   = html
-                mail.To         = email
-                mail.Subject    = f"Feedback Finanzbuchhaltung f\u00FCr {display_timeframe(zeitraum)}"
-                mail.SendUsingAccount = acct
-                mail.Save()
-                mail.Move(drafts)
+                subject = f"Feedback Finanzbuchhaltung f\u00FCr {display_timeframe(zeitraum)}"
+                create_draft_mail(outlook, acct, email, subject, html, drafts)
                 did_fb = True
                 count_fb += 1
 
@@ -518,19 +411,11 @@ def main():
             # -----------------------
             if has_ustva:
                 html_path = word_fill_to_html(word, PATH_USTVA_BWA, placeholders, tmpdir)
-                made.append(html_path)
                 html = read_text_utf8(html_path)
                 html = html.replace("{{Feedback}}", "")  # falls Platzhalter existiert
                 html = ensure_utf8_meta(html)
-
-                mail = outlook.CreateItem(0)
-                mail.BodyFormat = 2
-                mail.HTMLBody   = html
-                mail.To         = email
-                mail.Subject    = f"UStVA- und BWA-Ergebnis f\u00FCr {display_timeframe(zeitraum)}"
-                mail.SendUsingAccount = acct
-                mail.Save()
-                mail.Move(drafts)
+                subject = f"UStVA- und BWA-Ergebnis f\u00FCr {display_timeframe(zeitraum)}"
+                create_draft_mail(outlook, acct, email, subject, html, drafts)
                 did_ust = True
                 count_u += 1
 
