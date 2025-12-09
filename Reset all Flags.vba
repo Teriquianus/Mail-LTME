@@ -3,7 +3,8 @@ Option Explicit
 Sub Reset_All_Flags()
     Const SHEET_NAME As String = "Vorlage Mail"  ' ggf. anpassen
     Const COL_START As String = "I"              ' erste Flag-Spalte
-    Const COL_END As String = "J"                ' zweite Flag-Spalte
+    Const COL_MID As String = "J"                ' zweite Flag-Spalte
+    Const COL_END As String = "K"                ' Dritte Flag-Spalte
 
     Dim ws As Worksheet
     Dim lastRow As Long
@@ -25,10 +26,8 @@ Sub Reset_All_Flags()
     End If
 
     ' Alle Flags auf FALSCH setzen (Zeilen 2 bis letzte)
-    ws.Range(COL_START & "2:" & COL_END & lastRow).Value = False
+    ws.Range(COL_START & "3:" & COL_END & lastRow).Value = False
 
     ' MsgBox "Alle Flags in Spalte " & COL_START & " und " & COL_END & _
            " wurden auf FALSCH gesetzt (" & (lastRow - 1) & " Zeilen).", vbInformation
 End Sub
-
-
