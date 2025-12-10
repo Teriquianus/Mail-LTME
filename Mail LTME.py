@@ -195,12 +195,12 @@ def build_nested_feedback_html(content: str) -> str:
     content = content.replace("\r\n\r\n", "\r\n")
     lines = [ln.strip() for ln in content.splitlines()]
     section = ""
-    belege, bank = [], []
+    belege, bank, allgemeines = [], [], []
     for t in lines:
         if not t:
             continue
         tu = t.upper().rstrip(":")
-        if tu in ("BELEGE", "BANK"):
+        if tu in ("BELEGE", "BANK", "ALLGEMEINES"):
             section = tu
             continue
         if t.startswith("- "):
@@ -209,9 +209,11 @@ def build_nested_feedback_html(content: str) -> str:
             section = "BELEGE"
         if section == "BELEGE":
             belege.append(html_encode(t))
-        else:
+        elif section == "BANK":
             bank.append(html_encode(t))
-    if not belege and not bank:
+        else:
+            allgemeines.append(html_encode(t))
+    if not belege and not bank and not allgemeines:
         for t in lines:
             if not t:
                 continue
@@ -225,6 +227,8 @@ def build_nested_feedback_html(content: str) -> str:
         html += f"<li><u>Belege</u><ul>{joinlis(belege)}</ul></li>"
     if bank:
         html += f"<li><u>Bank</u><ul>{joinlis(bank)}</ul></li>"
+    if allgemeines:
+        html += f"<li><u>Allgemeines</u><ul>{joinlis(allgemeines)}</ul></li>"
     html += "</ul>"
     return html
 
