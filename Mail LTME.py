@@ -43,6 +43,11 @@ _MONTH_NAMES_DE = {
     "juli": 7, "august": 8, "september": 9, "oktober": 10, "november": 11, "dezember": 12,
 }
 
+_MONTH_NAMES = [
+    "Januar", "Februar", "März", "April", "Mai", "Juni",
+    "Juli", "August", "September", "Oktober", "November", "Dezember",
+]
+
 EURO = "\u20AC"
 
 # =========================
@@ -190,6 +195,15 @@ def display_timeframe(tf: str) -> str:
     q = ((int(m1)-1)//3)+1
     return f"{q}. Quartal {y}"
 
+def format_feedback_header(key: str) -> str:
+    parts = key.split("-")
+    if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
+        year, month = parts
+        idx = int(month) - 1
+        if 0 <= idx < 12:
+            return f"{_MONTH_NAMES[idx]} {year}"
+    return key
+
 def build_nested_feedback_html(content: str) -> str:
     # Erwartet "BELEGE"/"BANK" Überschriften und "- " Bulletpoints; tolerant ohne Überschriften.
     content = content.replace("\r\n\r\n", "\r\n")
@@ -320,7 +334,7 @@ def build_feedback_block(mandant: str, timeframe: str) -> str:
             print(f"[HIT] {fname}")
             content = read_text_utf8(fpath)
             html_list = build_nested_feedback_html(content)
-            header = html_encode(os.path.splitext(fname)[0])
+            header = html_encode(format_feedback_header(key))
             out.append(f"<b><u>{header}</u></b>{html_list}<br>")
         else:
             print(f"[MISS] {fname} nicht gefunden in {base}")
