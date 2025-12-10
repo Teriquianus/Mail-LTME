@@ -1,5 +1,7 @@
 Option Explicit
 Private Const AddisonFieldCount As Long = 12
+Private Const FEEDBACK_SHEET_NAME As String = "Vorlage Mail"
+Private Const FEEDBACK_TABLE_NAME As String = "Feedback"
 
 Sub ImportUStVAFromAddison()
     Dim ws As Worksheet
@@ -38,6 +40,7 @@ Sub ImportUStVAFromAddison()
     Dim imported As Long
     imported = InsertSortedRows(tbl, sortedData)
     Debug.Print "Importierte UStVA-Zeilen: " & imported
+    LogFeedbackEntry imported
 End Sub
 
 Private Function GetClipboardText() As String
@@ -136,3 +139,24 @@ NextRow:
 
     InsertSortedRows = imported
 End Function
+
+Private Sub LogFeedbackEntry(ByVal count As Long)
+    Dim ws As Worksheet
+    On Error Resume Next
+    Set ws = ThisWorkbook.Sheets(FEEDBACK_SHEET_NAME)
+    On Error GoTo 0
+    If ws Is Nothing Then Exit Sub
+
+    Dim feedback As ListObject
+    On Error Resume Next
+    Set feedback = ws.ListObjects(FEEDBACK_TABLE_NAME)
+    On Error GoTo 0
+    If feedback Is Nothing Then Exit Sub
+
+    Dim i As Long
+    For i = 1 To count
+        Dim row As ListRow
+        Set row = feedback.ListRows.Add
+        ' Leere Zeile ohne Inhalte hinzufügen (nur Zeilenanzahl zählt)
+    Next i
+End Sub
