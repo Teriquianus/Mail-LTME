@@ -1,9 +1,9 @@
 Option Explicit
 
 Private Const PYTHON_EXE As String = "C:\Users\AlexanderHaller\AppData\Local\Python\bin\python.exe"
-Private Const PY_SCRIPT  As String = "C:\Users\AlexanderHaller\DEV\Mail-LTME\Mail LTME.py"
+Private Const PY_SCRIPT  As String = "C:\Users\AlexanderHaller\DEV\Mail-LTME\Rundmail.py"
 
-Public Sub Run_MailJob_In_CMD_And_QuitExcel()
+Public Sub StartRundmail()
     ' Speichern
     ThisWorkbook.Save
 
